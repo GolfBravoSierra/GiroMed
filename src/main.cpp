@@ -13,8 +13,10 @@ SMTPSession smtp;
 
 String nurseEmail = "giovanibelliniestudos@gmail.com";
 
+int restockDay = 0; // Default: Domingo
+
+
 void sendEmail(String assunto, String corpoMensagem) {
-  
   Serial.println("Conectando ao servidor do Google...");
 
   ESP_Mail_Session session;
@@ -152,13 +154,13 @@ if (server.hasArg("endereco_email")) {
   }
 }
 
-bool isSunday(){
+bool isRestockDay(){
   
   if (!getLocalTime(&currentTime)) {
     return false; 
   } 
   
-  if (currentTime.tm_wday == 0) {
+  if (currentTime.tm_wday == restockDay) {
     return true; 
   } else {
     return false;
@@ -245,8 +247,6 @@ void alignCarousel(){
 
 void rotateMotorTo(int targetSlot){
 
-  alignCarousel();
-  
   Serial.printf("\n--- INICIANDO ENTREGA ---\n");
   Serial.printf("Carrossel atual: Gaveta %d | Destino: Gaveta %d\n", currentSlot, targetSlot);
 
@@ -265,7 +265,7 @@ void rotateMotorTo(int targetSlot){
 
   Serial.println(">>> REMEDIO DISPENSADO COM SUCESSO! <<<");
 
-  currentSlot = targetSlot;
+  alignCarousel();
 
   return;
 }
@@ -321,46 +321,58 @@ void setup() {
   server.on("/lista", handleList);
   server.on("/salvarEmail", handleSavingEmail);
     server.begin();
-  
+ 
+  server.on("/reabastecer", []() {
+    server.send(200, "text/html", reabastecer_html);
+  });
+
+  server.on("/salvarReabastecimento", []() {
+    if (server.hasArg("dia_reabastecimento")) {
+      restockDay = server.arg("dia_reabastecimento").toInt();
+      server.sendHeader("Location", "/");
+      server.send(300);
+    } else {
+      server.send(400, "text/plain", "Erro ao processar o dia.");
+    }
+  });
+    
 }
 
 int lastVerifiedMinute = -1;
 
 void loop() {
 
-if(!getLocalTime(&currentTime)){
-  return;
-}
+  char msg[100]; 
 
-server.handleClient();
-
-if (currentTime.tm_min != lastVerifiedMinute && thereAreProgramsForToday()) {
-
-  if(thereAreProgramsForToday()){
-
-    if(isSunday()){
-      // aqui vai ter uma parte de notificação 
-    }
-    
-    if (isTimeForMeds()){
-      int thisHourSlot = findSlotsForThisHour();
-      Serial.printf("/n O slot para esse hora é: %d",thisHourSlot);
-      rotateMotorTo(thisHourSlot);
-
-      char msg[100]; 
-      sprintf(msg, "Aviso: O remedio da gaveta %d acabou de ser dispensado!", thisHourSlot); 
-
-      sendEmail("Remedio dispensado", msg);
-
-    }
-
-  }else{
-    delay(10000);
-    // alguma coisa pra ele dormir aumentar o delay do loop para ele não ficar atualizando de 15 em 15 min
+  if(!getLocalTime(&currentTime)){
+    return;
   }
 
-  lastVerifiedMinute = currentTime.tm_min;
-}
+  server.handleClient();
 
+  if (currentTime.tm_min != lastVerifiedMinute && thereAreProgramsForToday()) {
+
+    if(thereAreProgramsForToday()){
+
+      if(isRestockDay()){
+        sprintf(msg, "Hoje é o dia de reabastecer os remédios do dispositivo GiroMed");
+        sendEmail("Hoje é dia de reabastecer os remédios", msg);
+      }
+      
+      if (isTimeForMeds()){
+        int thisHourSlot = findSlotsForThisHour();
+        Serial.printf("/n O slot para esse hora é: %d",thisHourSlot);
+        rotateMotorTo(thisHourSlot);
+        sprintf(msg, "Aviso: O remedio da gaveta %d acabou de ser dispensado!", thisHourSlot); 
+        sendEmail("Remedio dispensado", msg);
+      }
+
+    }else{
+      delay(10000);
+      // alguma coisa pra ele dormir aumentar o delay do loop para ele não ficar atualizando de 15 em 15 min
+    }
+
+    lastVerifiedMinute = currentTime.tm_min;
+  }
 
 }
