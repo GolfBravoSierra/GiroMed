@@ -2,50 +2,176 @@
 #include <time.h>
 #include <WiFi.h>
 #include <WiFiManager.h>
-#include <ESP_Mail_Client.h>  
-
 #include <ESP_Mail_Client.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h> // Biblioteca necessaria para o LCD I2C
+
+// ==========================================
+// CONFIGURAÇÃO DO LCD
+// ==========================================
+// O endereço 0x27 é o padrão para o chip PCF8574. Tela configurada como 16 colunas x 2 linhas
+LiquidCrystal_I2C lcdMonitor(0x27, 16, 2);
+
+// ==========================================
+// CENTRAL DE MENSAGENS DO MONITOR
+// ==========================================
+void updateLCDMonitor(int messageId, int param1 = 0, int param2 = 0, int param3 = 0, int param4 = 0, String textParam = "") {
+  lcdMonitor.clear();
+  lcdMonitor.setCursor(0, 0);
+
+  char screenBuffer[17]; 
+
+  switch(messageId) {
+    case 1:
+      lcdMonitor.print("Conectando SMTP");
+      lcdMonitor.setCursor(0, 1);
+      lcdMonitor.print("Google...");
+      break;
+    case 2:
+      lcdMonitor.print("Erro de Conexao");
+      lcdMonitor.setCursor(0, 1);
+      lcdMonitor.print("Falha no SMTP!");
+      break;
+    case 3:
+      lcdMonitor.print("Erro de E-mail");
+      lcdMonitor.setCursor(0, 1);
+      lcdMonitor.print(textParam.substring(0, 16));
+      break;
+    case 4:
+      lcdMonitor.print("E-mail Enviado!");
+      lcdMonitor.setCursor(0, 1);
+      lcdMonitor.print("Sucesso");
+      break;
+    case 5:
+      lcdMonitor.print("Novo Remedio RX!");
+      lcdMonitor.setCursor(0, 1);
+      snprintf(screenBuffer, sizeof(screenBuffer), "G:%d %02d:%02d D:%d", param1, param2, param3, param4);
+      lcdMonitor.print(screenBuffer);
+      break;
+    case 6:
+      lcdMonitor.print("Novo Email Dest.");
+      lcdMonitor.setCursor(0, 1);
+      lcdMonitor.print(textParam.substring(0, 16));
+      break;
+    case 7:
+      lcdMonitor.print("Erro no Relogio");
+      lcdMonitor.setCursor(0, 1);
+      lcdMonitor.print("NTP Falhou");
+      break;
+    case 8:
+      lcdMonitor.print("Alinhando...");
+      lcdMonitor.setCursor(0, 1);
+      lcdMonitor.print("Buscando Gav. 0");
+      break;
+    case 9:
+      lcdMonitor.print("Alinhamento OK!");
+      lcdMonitor.setCursor(0, 1);
+      lcdMonitor.print("Gaveta 0 Pronta");
+      break;
+    case 10:
+      lcdMonitor.print("Entrega Iniciada");
+      lcdMonitor.setCursor(0, 1);
+      snprintf(screenBuffer, sizeof(screenBuffer), "Gav:%d -> Gav:%d", param1, param2);
+      lcdMonitor.print(screenBuffer);
+      break;
+    case 11:
+      lcdMonitor.print("Girando Motor...");
+      lcdMonitor.setCursor(0, 1);
+      snprintf(screenBuffer, sizeof(screenBuffer), "Passos: %d", param1);
+      lcdMonitor.print(screenBuffer);
+      break;
+    case 12:
+      lcdMonitor.print("Remedio Ejetado!");
+      lcdMonitor.setCursor(0, 1);
+      lcdMonitor.print("Abra a Porta...");
+      break;
+    case 13:
+      lcdMonitor.print("Porta Aberta");
+      lcdMonitor.setCursor(0, 1);
+      lcdMonitor.print("Retire o Remedio");
+      break;
+    case 14:
+      lcdMonitor.print("Porta Fechada");
+      lcdMonitor.setCursor(0, 1);
+      lcdMonitor.print("Realinhando...");
+      break;
+    case 15:
+      lcdMonitor.print("Iniciando...");
+      lcdMonitor.setCursor(0, 1);
+      lcdMonitor.print("Buscando Wi-Fi");
+      break;
+    case 16:
+      lcdMonitor.print("Erro de Wi-Fi");
+      lcdMonitor.setCursor(0, 1);
+      lcdMonitor.print("Reiniciando...");
+      break;
+    case 17:
+      lcdMonitor.print("Wi-Fi Conectado!");
+      lcdMonitor.setCursor(0, 1);
+      lcdMonitor.print("Rede OK");
+      break;
+    case 18:
+      lcdMonitor.print("Acesse na Rede:");
+      lcdMonitor.setCursor(0, 1);
+      lcdMonitor.print("giromed.local");
+      break;
+    case 19:
+      lcdMonitor.print("Teste de E-mail");
+      lcdMonitor.setCursor(0, 1);
+      lcdMonitor.print("Enviando agora");
+      break;
+    case 20:
+      lcdMonitor.print("Hora do Remedio!");
+      lcdMonitor.setCursor(0, 1);
+      snprintf(screenBuffer, sizeof(screenBuffer), "Gaveta Alvo: %d", param1);
+      lcdMonitor.print(screenBuffer);
+      break;
+    default:
+      lcdMonitor.print("GiroMed Ativo");
+      break;
+  }
+}
+
+// ==========================================
+// CONFIGURAÇÕES GERAIS E CONSTANTES
+// ==========================================
 #define SMTP_HOST "smtp.gmail.com"
 #define SMTP_PORT 465
-#define EMAIL_REMETENTE "giromedalerta@gmail.com"
-#define SENHA_APP "aohq whpv sxot yvyx " 
+#define SENDER_EMAIL "giromedalerta@gmail.com"
+#define APP_PASSWORD "aohq whpv sxot yvyx " 
 SMTPSession smtp;
 
 String nurseEmail = "giovanibelliniestudos@gmail.com";
 
-int restockDay = 0; // Default: Domingo
-
-
-void sendEmail(String assunto, String corpoMensagem) {
-  Serial.println("Conectando ao servidor do Google...");
+void sendEmail(String emailSubject, String emailBody) {
+  
+  updateLCDMonitor(1); 
 
   ESP_Mail_Session session;
   session.server.host_name = SMTP_HOST;
   session.server.port = SMTP_PORT;
-  session.login.email = EMAIL_REMETENTE;
-  session.login.password = SENHA_APP;
+  session.login.email = SENDER_EMAIL;
+  session.login.password = APP_PASSWORD;
   session.login.user_domain = "";
-
 
   SMTP_Message message;
   message.sender.name = "Máquina GiroMed";
-  message.sender.email = EMAIL_REMETENTE;
+  message.sender.email = SENDER_EMAIL;
   
   message.addRecipient("Cuidador Responsável", nurseEmail);
   
-  message.subject = assunto;
-  message.text.content = corpoMensagem;
+  message.subject = emailSubject;
+  message.text.content = emailBody;
 
   if (!smtp.connect(&session)) {
-    Serial.println("Erro de conexão SMTP!");
+    updateLCDMonitor(2); 
     return;
   }
 
   if (!MailClient.sendMail(&smtp, &message)) {
-    Serial.print("Erro ao enviar o e-mail: "); 
-    Serial.println(smtp.errorReason());
+    updateLCDMonitor(3, 0, 0, 0, 0, smtp.errorReason().c_str()); 
   } else {
-    Serial.println(">>> E-MAIL ENVIADO COM SUCESSO! <<<");
+    updateLCDMonitor(4); 
   }
 
   smtp.sendingResult.clear();
@@ -74,13 +200,13 @@ struct tm currentTime;
 #include <ESPmDNS.h>
 #include <WebServer.h>
 WebServer server(80);
+
+// Inclui o HTML após a instância do server (não alteramos variáveis dentro desse escopo HTML)
 #include "web_page.h"
 
 void handleSavingPrograms() {
-
   if (server.hasArg("slot") && server.hasArg("hora") && server.hasArg("minuto") && server.hasArg("dia")) {
     
-
     int newSlot = server.arg("slot").toInt();
     int newHour = server.arg("hora").toInt();
     int newMinute = server.arg("minuto").toInt();
@@ -93,87 +219,78 @@ void handleSavingPrograms() {
     
     medsProgramTotalCount++;
 
-    Serial.printf("\n>>> NOVO REMEDIO RECEBIDO VIA WIFI <<<\n");
-    Serial.printf("Gaveta %d para as %02d:%02d no dia %d\n", newSlot, newHour, newMinute, newDay);
-
-    server.send(200, "text/html", sucesso_html);
+    updateLCDMonitor(5, newSlot, newHour, newMinute, newDay);
     
+    server.send(200, "text/html", sucesso_html);
   } else {
     server.send(400, "text/plain", "Erro: Dados incompletos");
   }
 }
 
 void handleList() {
-  String html = String(lista_topo);
+  String htmlContent = String(lista_topo);
   
   const char* daysOfTheWeek[] = {"Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"};
 
   if (medsProgramTotalCount == 0) {
-    html += "<tr><td colspan='3'>Nenhuma programação encontrada.</td></tr>";
+    htmlContent += "<tr><td colspan='3'>Nenhuma programação encontrada.</td></tr>";
   } else {
     for (int i = 0; i < medsProgramTotalCount; i++) {
-      html += "<tr>";
+      htmlContent += "<tr>";
       
-      html += "<td>";
-      html += medsProgramCalender[i].slot; 
-      html += "</td>";
+      htmlContent += "<td>";
+      htmlContent += medsProgramCalender[i].slot; 
+      htmlContent += "</td>";
       
-      char bufferHora[10];
-      sprintf(bufferHora, "%02d:%02d", medsProgramCalender[i].hour, medsProgramCalender[i].minutes);
-      html += "<td>";
-      html += bufferHora;
-      html += "</td>";
+      char hourBuffer[10];
+      sprintf(hourBuffer, "%02d:%02d", medsProgramCalender[i].hour, medsProgramCalender[i].minutes);
+      htmlContent += "<td>";
+      htmlContent += hourBuffer;
+      htmlContent += "</td>";
       
-      html += "<td>";
-      html += daysOfTheWeek[medsProgramCalender[i].weekDay]; 
-      html += "</td>";
+      htmlContent += "<td>";
+      htmlContent += daysOfTheWeek[medsProgramCalender[i].weekDay]; 
+      htmlContent += "</td>";
       
-      html += "</tr>";
+      htmlContent += "</tr>";
     }
   }
 
-  html += String(lista_fim);
-  server.send(200, "text/html", html);
+  htmlContent += String(lista_fim);
+  server.send(200, "text/html", htmlContent);
 }
 
 void handleSavingEmail() {
-if (server.hasArg("endereco_email")) {
+  if (server.hasArg("endereco_email")) {
+    
+    nurseEmail = server.arg("endereco_email");
+    
+    updateLCDMonitor(6, 0, 0, 0, 0, nurseEmail);
   
-  nurseEmail = server.arg("endereco_email");
-  
-  Serial.print("\n>>> NOVO E-MAIL DE ALERTA CADASTRADO <<<\n");
-  Serial.print("Destino: ");
-  Serial.println(nurseEmail);
-
-  String htmlResposta = "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Sucesso</title><style>body { font-family: Arial; text-align: center; margin-top: 50px; background-color: #f4f4f9;} .btn { padding: 12px 24px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;}</style></head><body><h2 style='color: #28a745;'>E-mail Atualizado! ✅</h2><p>Os alertas de dispensação agora serão enviados para:<br><b>" + nurseEmail + "</b></p><br><br><a href='/' class='btn'>Voltar ao Menu</a></body></html>";
-  
-  server.send(200, "text/html", htmlResposta);
-  
+    String responseHtml = "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Sucesso</title><style>body { font-family: Arial; text-align: center; margin-top: 50px; background-color: #f4f4f9;} .btn { padding: 12px 24px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;}</style></head><body><h2 style='color: #28a745;'>E-mail Atualizado! ✅</h2><p>Os alertas de dispensação agora serão enviados para:<br><b>" + nurseEmail + "</b></p><br><br><a href='/' class='btn'>Voltar ao Menu</a></body></html>";
+    
+    server.send(200, "text/html", responseHtml);
+    
   } else {
     server.send(400, "text/plain", "Erro: E-mail não recebido.");
   }
 }
 
-bool isRestockDay(){
-  
+bool isSunday(){
   if (!getLocalTime(&currentTime)) {
     return false; 
   } 
-  
-  if (currentTime.tm_wday == restockDay) {
+  if (currentTime.tm_wday == 0) {
     return true; 
   } else {
     return false;
   }
-  
 }
 
 bool thereAreProgramsForToday(){
-  
   if (!getLocalTime(&currentTime)) {
     return false; 
   } 
-  
   for(int i=0; i < 21 ;i++){
     if(currentTime.tm_wday == medsProgramCalender[i].weekDay){
       return true;
@@ -183,29 +300,21 @@ bool thereAreProgramsForToday(){
 }
 
 bool isTimeForMeds(){
-
-  
   if (!getLocalTime(&currentTime)) {
     return 0; 
   } 
-
-  int theMedForThisHour;
-  
   for(int i = 0; i < 21; i++){
     if(currentTime.tm_hour == medsProgramCalender[i].hour && currentTime.tm_min == medsProgramCalender[i].minutes){
       return true;
     }
   }
-
   return false;
 }
 
 int findSlotsForThisHour(){
-  
   if(!getLocalTime(&currentTime)){
-    Serial.printf("erro na hora\n");
+    updateLCDMonitor(7);
   }
-  
   for(int i = 0; i < 21; i++){
     if (currentTime.tm_hour == medsProgramCalender[i].hour && currentTime.tm_min == medsProgramCalender[i].minutes   ){
       return medsProgramCalender[i].slot;
@@ -215,55 +324,80 @@ int findSlotsForThisHour(){
 }
 
 
+// ==========================================
+// CONFIGURAÇÃO DOS PINOS E MOTOR
+// ==========================================
 const int stepsPerRevolution = 2048;
 int currentSlot = 0;
-#define IN1 19
-#define IN2 18
-#define IN3 5
-#define IN4 17
-#define limitSwitch 22
-Stepper myStepper(stepsPerRevolution, IN1, IN3, IN2, IN4);
 
-void motorAus() {
-  digitalWrite(IN1, LOW);
-  digitalWrite(IN2, LOW);
-  digitalWrite(IN3, LOW);
-  digitalWrite(IN4, LOW);
+#define MOTOR_IN1 25
+#define MOTOR_IN2 13
+#define MOTOR_IN3 14
+#define MOTOR_IN4 27
+
+#define MAGNETIC_SENSOR_PIN 26 
+#define DOOR_SENSOR_PIN 32     
+#define BUZZER_PIN 33    
+
+Stepper myStepper(stepsPerRevolution, MOTOR_IN1, MOTOR_IN3, MOTOR_IN2, MOTOR_IN4);
+
+void turnOffMotor() {
+  digitalWrite(MOTOR_IN1, LOW);
+  digitalWrite(MOTOR_IN2, LOW);
+  digitalWrite(MOTOR_IN3, LOW);
+  digitalWrite(MOTOR_IN4, LOW);
 }
 
 void alignCarousel(){
-  pinMode(limitSwitch, INPUT_PULLUP);
+  pinMode(MAGNETIC_SENSOR_PIN, INPUT_PULLUP);
 
-  while(digitalRead(limitSwitch)== HIGH){
-    myStepper.step(-10);
-    delay(5);
+  updateLCDMonitor(8); 
+
+  while(digitalRead(MAGNETIC_SENSOR_PIN) == HIGH){
+    myStepper.step(-1);
+    delay(10);
   }
 
-  motorAus();
-
+  turnOffMotor();
   currentSlot = 0;
+  
+  updateLCDMonitor(9); 
 }
 
-
 void rotateMotorTo(int targetSlot){
-
-  Serial.printf("\n--- INICIANDO ENTREGA ---\n");
-  Serial.printf("Carrossel atual: Gaveta %d | Destino: Gaveta %d\n", currentSlot, targetSlot);
+  
+  updateLCDMonitor(10, currentSlot, targetSlot); 
 
   float currentAngle = storageCarouselSlots[currentSlot];
   float targetAngle = storageCarouselSlots[targetSlot];
 
   float differenceBetweenCurrentAndTargetAngle = targetAngle - currentAngle;
-
   long stepsToWalk = (differenceBetweenCurrentAndTargetAngle / 360.0) * stepsPerRevolution;
 
-  Serial.printf("Girando o motor em %ld passos...\n", stepsToWalk);
-
+  updateLCDMonitor(11, stepsToWalk); 
   myStepper.step(stepsToWalk);
+  
+  turnOffMotor(); 
 
-  motorAus();
+  updateLCDMonitor(12); 
 
-  Serial.println(">>> REMEDIO DISPENSADO COM SUCESSO! <<<");
+  while(digitalRead(DOOR_SENSOR_PIN) == LOW){
+    tone(BUZZER_PIN, 1000); 
+    delay(300);
+    tone(BUZZER_PIN, 1500); 
+    delay(300);
+  }
+
+  noTone(BUZZER_PIN); 
+  
+  updateLCDMonitor(13); 
+
+  while(digitalRead(DOOR_SENSOR_PIN) == HIGH){
+    delay(100); 
+  }
+
+  updateLCDMonitor(14); 
+  delay(1000); 
 
   alignCarousel();
 
@@ -277,29 +411,36 @@ const long  brasiliaTime = -3 * 3600;
 const int   summerTimeOffset = 0;
 
 void setup() {
-  Serial.begin(115200);
   
-  alignCarousel();
+  // Iniciação do LCD I2C
+  lcdMonitor.init();
+  lcdMonitor.backlight();
 
+  pinMode(DOOR_SENSOR_PIN, INPUT_PULLUP);
+  pinMode(BUZZER_PIN, OUTPUT);
+
+  alignCarousel();
+  
   WiFiManager wm;
 
-  Serial.printf("waiting for wifi connectioni\n");
+  updateLCDMonitor(15); 
   bool connected = wm.autoConnect("giromed", "27042026");
 
   if (!connected) {
-    Serial.println("ERRO ESP32 was unable to connect to the Wi-Fi.\n");
+    updateLCDMonitor(16); 
     delay(3000);
     ESP.restart();
   }
 
-  Serial.println("\nWifi -> OK");
+  updateLCDMonitor(17); 
+  delay(1500); // Pausa visual para ver a mensagem
+  
   configTime(brasiliaTime, summerTimeOffset, ntpServer);
   
   myStepper.setSpeed(5);
   
   if (MDNS.begin("giromed")) {
-    Serial.println("MDNS iniciado com sucesso!");
-    Serial.println("Acesse no navegador: http://giromed.local");
+    updateLCDMonitor(18); 
   }
 
   server.on("/", []() {
@@ -313,36 +454,21 @@ void setup() {
   server.on("/email", []() {
     server.send(200, "text/html", email_html);
   });
+  
   server.on("/testeEmail", []() {
-    Serial.println("Executando teste de e-mail solicitado via Web...");
+    updateLCDMonitor(19); 
     sendEmail("Teste de Funcionamento", "Olá! Este é um e-mail de teste enviado pelo GiroMed. O sistema de alertas está operacional.");
   });
+  
   server.on("/salvar", handleSavingPrograms); 
   server.on("/lista", handleList);
   server.on("/salvarEmail", handleSavingEmail);
-    server.begin();
- 
-  server.on("/reabastecer", []() {
-    server.send(200, "text/html", reabastecer_html);
-  });
-
-  server.on("/salvarReabastecimento", []() {
-    if (server.hasArg("dia_reabastecimento")) {
-      restockDay = server.arg("dia_reabastecimento").toInt();
-      server.sendHeader("Location", "/");
-      server.send(300);
-    } else {
-      server.send(400, "text/plain", "Erro ao processar o dia.");
-    }
-  });
-    
+  server.begin();
 }
 
 int lastVerifiedMinute = -1;
 
 void loop() {
-
-  char msg[100]; 
 
   if(!getLocalTime(&currentTime)){
     return;
@@ -354,25 +480,28 @@ void loop() {
 
     if(thereAreProgramsForToday()){
 
-      if(isRestockDay()){
-        sprintf(msg, "Hoje é o dia de reabastecer os remédios do dispositivo GiroMed");
-        sendEmail("Hoje é dia de reabastecer os remédios", msg);
+      if(isSunday()){
+        // Notificação semanal pendente 
       }
       
       if (isTimeForMeds()){
         int thisHourSlot = findSlotsForThisHour();
-        Serial.printf("/n O slot para esse hora é: %d",thisHourSlot);
+        
+        updateLCDMonitor(20, thisHourSlot); 
+        delay(2000); // Pausa visual na tela de notificação da hora
+        
         rotateMotorTo(thisHourSlot);
-        sprintf(msg, "Aviso: O remedio da gaveta %d acabou de ser dispensado!", thisHourSlot); 
-        sendEmail("Remedio dispensado", msg);
+
+        char emailMessage[100]; 
+        sprintf(emailMessage, "Aviso: O remedio da gaveta %d acabou de ser dispensado!", thisHourSlot); 
+
+        sendEmail("Remedio dispensado", emailMessage);
       }
 
     }else{
       delay(10000);
-      // alguma coisa pra ele dormir aumentar o delay do loop para ele não ficar atualizando de 15 em 15 min
     }
 
     lastVerifiedMinute = currentTime.tm_min;
   }
-
 }
