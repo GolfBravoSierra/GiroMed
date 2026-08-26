@@ -9,7 +9,7 @@ GiroMed is an automated, IoT-enabled medicine dispenser designed for the elderly
 ![3D Model of the Carousel](images/3d-model.png)
 
 ### Fritzing Simulation
-![Circuit Schematic in Fritzing](images/fritzing-schematic.png)
+![Circuit Schematic in Fritzing](images/FritzingSchematic.png)
 
 ### Real Assembly
 ![Real Circuit working](images/real-circuit.jpg)
