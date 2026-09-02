@@ -4,17 +4,10 @@
 #include <WiFiManager.h>
 #include <ESP_Mail_Client.h>
 #include <Wire.h>
-#include <LiquidCrystal_I2C.h> // Biblioteca necessaria para o LCD I2C
+#include <LiquidCrystal_I2C.h>
 
-// ==========================================
-// CONFIGURAÇÃO DO LCD
-// ==========================================
-// O endereço 0x27 é o padrão para o chip PCF8574. Tela configurada como 16 colunas x 2 linhas
 LiquidCrystal_I2C lcdMonitor(0x27, 16, 2);
 
-// ==========================================
-// CENTRAL DE MENSAGENS DO MONITOR
-// ==========================================
 void updateLCDMonitor(int messageId, int param1 = 0, int param2 = 0, int param3 = 0, int param4 = 0, String textParam = "") {
   lcdMonitor.clear();
   lcdMonitor.setCursor(0, 0);
@@ -126,15 +119,17 @@ void updateLCDMonitor(int messageId, int param1 = 0, int param2 = 0, int param3 
       snprintf(screenBuffer, sizeof(screenBuffer), "Gaveta Alvo: %d", param1);
       lcdMonitor.print(screenBuffer);
       break;
+    case 21:
+      lcdMonitor.print("Dia de resabastecimento");
+      lcdMonitor.setCursor(0, 1);
+      lcdMonitor.print("Configurado");
+      break;
     default:
       lcdMonitor.print("GiroMed Ativo");
       break;
   }
 }
 
-// ==========================================
-// CONFIGURAÇÕES GERAIS E CONSTANTES
-// ==========================================
 #define SMTP_HOST "smtp.gmail.com"
 #define SMTP_PORT 465
 #define SENDER_EMAIL "giromedalerta@gmail.com"
@@ -200,8 +195,6 @@ struct tm currentTime;
 #include <ESPmDNS.h>
 #include <WebServer.h>
 WebServer server(80);
-
-// Inclui o HTML após a instância do server (não alteramos variáveis dentro desse escopo HTML)
 #include "web_page.h"
 
 void handleSavingPrograms() {
@@ -276,11 +269,17 @@ void handleSavingEmail() {
   }
 }
 
-bool isSunday(){
+void handleSaveRestockDay(){
+  
+}
+
+int RestockDay = 0;
+
+bool isRestockDay(){
   if (!getLocalTime(&currentTime)) {
     return false; 
   } 
-  if (currentTime.tm_wday == 0) {
+  if (currentTime.tm_wday == RestockDay) {
     return true; 
   } else {
     return false;
@@ -323,10 +322,6 @@ int findSlotsForThisHour(){
   return 0;
 }
 
-
-// ==========================================
-// CONFIGURAÇÃO DOS PINOS E MOTOR
-// ==========================================
 const int stepsPerRevolution = 2048;
 int currentSlot = 0;
 
@@ -412,7 +407,6 @@ const int   summerTimeOffset = 0;
 
 void setup() {
   
-  // Iniciação do LCD I2C
   lcdMonitor.init();
   lcdMonitor.backlight();
 
@@ -433,7 +427,7 @@ void setup() {
   }
 
   updateLCDMonitor(17); 
-  delay(1500); // Pausa visual para ver a mensagem
+  delay(1500);
   
   configTime(brasiliaTime, summerTimeOffset, ntpServer);
   
@@ -459,6 +453,11 @@ void setup() {
     updateLCDMonitor(19); 
     sendEmail("Teste de Funcionamento", "Olá! Este é um e-mail de teste enviado pelo GiroMed. O sistema de alertas está operacional.");
   });
+
+  server.on("/restockDay", []() {
+    updateLCDMonitor(21);
+    handleSaveRestockDay(); 
+  });
   
   server.on("/salvar", handleSavingPrograms); 
   server.on("/lista", handleList);
@@ -474,25 +473,25 @@ void loop() {
     return;
   }
 
+  char emailMessage[100]; 
   server.handleClient();
 
   if (currentTime.tm_min != lastVerifiedMinute && thereAreProgramsForToday()) {
 
     if(thereAreProgramsForToday()){
 
-      if(isSunday()){
-        // Notificação semanal pendente 
+      if(isRestockDay()){
+         sprintf(emailMessage, "Hoje é dia de reabastecer o GiroMed"); 
       }
       
       if (isTimeForMeds()){
         int thisHourSlot = findSlotsForThisHour();
         
         updateLCDMonitor(20, thisHourSlot); 
-        delay(2000); // Pausa visual na tela de notificação da hora
+        delay(2000);
         
         rotateMotorTo(thisHourSlot);
 
-        char emailMessage[100]; 
         sprintf(emailMessage, "Aviso: O remedio da gaveta %d acabou de ser dispensado!", thisHourSlot); 
 
         sendEmail("Remedio dispensado", emailMessage);

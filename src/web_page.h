@@ -41,7 +41,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     
     <a href="/cadastrar" class="btn btn-cadastrar">➕ Adicionar Remédio</a>
     <a href="/lista" class="btn btn-lista">📋 Ver Programações</a>
-    <a href="/reabastecer" class="btn btn-reabastecer">🔄 Dia de Reabastecimento</a>
+    <a href="/paginaRestock" class="btn btn-reabastecer">🔄 Dia de Reabastecimento</a>
     <a href="/email" class="btn btn-email">✉️ Configurar Alerta</a>
   </div>
 </body>
@@ -99,7 +99,6 @@ const char cadastro_html[] PROGMEM = R"rawliteral(
 </html>
 )rawliteral";
 
-
 // =========================================================================
 // 3. TELA DE SUCESSO APÓS SALVAR
 // =========================================================================
@@ -125,8 +124,8 @@ const char sucesso_html[] PROGMEM = R"rawliteral(
     <h2 style="color: #28a745;">Programação Salva! ✅</h2>
     <p>A configuração foi registrada com sucesso.</p>
 
-    <a href="/cadastrar" class="btn btn-novo">➕ Configurar Novo Slot</a>
-    <a href="/" class="btn btn-menu">🏠 Voltar ao Menu</a>
+    <a href="/cadastrar" class="btn-novo">➕ Configurar Novo Slot</a>
+    <a href="/" class="btn-menu">🏠 Voltar ao Menu</a>
   </div>
 </body>
 </html>
@@ -212,6 +211,51 @@ const char email_html[] PROGMEM = R"rawliteral(
     <a href="/testeEmail" class="btn-teste">📧 Testar Envio de Alerta</a>
     
     <br>
+    <a href="/" class="btn-voltar">⬅ Voltar ao Menu</a>
+  </div>
+</body>
+</html>
+)rawliteral";
+
+// =========================================================================
+// 7. TELA DE CONFIGURAÇÃO DE DIA DE REABASTECIMENTO
+// =========================================================================
+const char reabastecer_html[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GiroMed - Reabastecimento</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin: 20px; background-color: #f4f4f9;}
+    .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); max-width: 400px; margin: auto;}
+    select, button { margin: 10px 0; padding: 10px; width: 90%; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box;}
+    button { background-color: #6f42c1; color: white; border: none; cursor: pointer; font-size: 16px; font-weight: bold; }
+    button:hover { background-color: #59339d; }
+    .btn-voltar { display: inline-block; margin-top: 15px; padding: 10px 20px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Dia de Reabastecimento</h2>
+    <p style="font-size: 14px; color: #555;">Escolha o dia da semana para receber o e-mail de alerta para repor os medicamentos no carrossel.</p>
+    
+    <form action="/restockDay" method="GET">
+      <label>Dia da Semana:</label>
+      <select name="dia_reabastecimento">
+        <option value="0">Domingo</option>
+        <option value="1">Segunda</option>
+        <option value="2">Terça</option>
+        <option value="3">Quarta</option>
+        <option value="4">Quinta</option>
+        <option value="5">Sexta</option>
+        <option value="6">Sábado</option>
+      </select>
+
+      <button type="submit">Salvar Dia</button>
+    </form>
+    
     <a href="/" class="btn-voltar">⬅ Voltar ao Menu</a>
   </div>
 </body>
